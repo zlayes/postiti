@@ -37,7 +37,7 @@
   #empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:18px;pointer-events:none;text-align:center;padding:24px}
 
   /* Post-it */
-  .note{position:absolute;width:240px;min-height:200px;background:var(--c,var(--paper));border-radius:2px;
+  .note{position:absolute;width:var(--w,240px);height:var(--h,200px);background:var(--c,var(--paper));border-radius:2px;
     box-shadow:0 1px 2px rgba(0,0,0,.25),0 10px 24px rgba(0,0,0,.35);display:flex;flex-direction:column;
     transform:rotate(var(--r,0deg));user-select:none}
   .note.drag{box-shadow:0 4px 6px rgba(0,0,0,.3),0 26px 40px rgba(0,0,0,.45);transform:rotate(0deg) scale(1.03);z-index:40!important;transition:none}
@@ -49,18 +49,40 @@
   .note .prio i.on{background:#c0392b}
   .note .head button{width:30px;height:30px;border-radius:6px;font-size:16px;opacity:.7}
   .note .head button:active{background:rgba(0,0,0,.1)}
-  .note textarea{flex:1;resize:none;border:0;background:transparent;font:inherit;font-size:17px;line-height:1.35;padding:10px 12px 12px;color:var(--ink);outline:none;min-height:150px;user-select:text}
+  .note textarea{flex:1;resize:none;border:0;background:transparent;font:inherit;font-size:17px;line-height:1.35;padding:10px 12px 12px;color:var(--ink);outline:none;min-height:0;user-select:text}
   .note textarea::placeholder{color:rgba(0,0,0,.35)}
-  .note .foot{display:flex;justify-content:space-between;padding:0 6px 6px}
+  .note .foot{display:flex;justify-content:space-between;padding:0 26px 6px 6px}
   .note .foot button{height:34px;padding:0 10px;border-radius:6px;font-size:14px;opacity:.75}
   .note .foot .done{font-weight:600;opacity:1}
   .note .foot button:active{background:rgba(0,0,0,.1)}
   /* Compte a rebours */
-  .note .due{display:none;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;
+  .due{display:none;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;
     background:rgba(0,0,0,.12);flex:0 0 auto;letter-spacing:.3px}
-  .note .due.on{display:inline-block}
-  .note .due.soon{background:#e8890c;color:#fff}
-  .note .due.late{background:#c0392b;color:#fff}
+  .due.on{display:inline-block}
+  .due.soon{background:#e8890c;color:#fff}
+  .due.late{background:#c0392b;color:#fff}
+
+  /* Poignee de redimensionnement */
+  .note .grip{position:absolute;right:0;bottom:0;width:26px;height:26px;cursor:nwse-resize;
+    touch-action:none;opacity:.3}
+  .note .grip::after{content:'';position:absolute;right:6px;bottom:6px;width:9px;height:9px;
+    border-right:2px solid currentColor;border-bottom:2px solid currentColor}
+  .note .grip:active{opacity:.65}
+  .note.sizing{transform:rotate(0deg);transition:none;z-index:41}
+
+  /* Mode plein ecran */
+  #full{position:fixed;inset:0;z-index:150;display:none;background:rgba(0,0,0,.5)}
+  #full.on{display:block}
+  #fullCard{position:absolute;inset:0;display:flex;flex-direction:column;
+    background:var(--c,var(--paper));color:var(--ink)}
+  #fullCard .fh{display:flex;align-items:center;gap:10px;height:54px;flex:0 0 auto;
+    padding:0 8px 0 18px;background:rgba(0,0,0,.07)}
+  #fullTheme{flex:1;font-size:14px;font-weight:600;opacity:.8;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #fullCard .fh button{width:44px;height:44px;border-radius:10px;font-size:18px;opacity:.7;flex:0 0 auto}
+  #fullCard .fh button:active{background:rgba(0,0,0,.1)}
+  #fullText{flex:1;resize:none;border:0;background:transparent;font:inherit;font-size:19px;
+    line-height:1.5;padding:18px 20px 28px;color:var(--ink);outline:none}
 
   /* Pile des taches closes, a droite */
   #rail{position:fixed;right:8px;top:64px;bottom:64px;width:190px;z-index:44;display:none;
@@ -255,6 +277,16 @@
   <button class="close" data-close>Fermer</button>
 </div></div>
 
+<!-- Post-it déployé en plein écran -->
+<div id="full"><div id="fullCard">
+  <div class="fh">
+    <span id="fullTheme"></span>
+    <span class="due" id="fullDue"></span>
+    <button id="fullClose" title="Fermer">✕</button>
+  </div>
+  <textarea id="fullText" placeholder="À faire…"></textarea>
+</div></div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
 <script>
 /* ---------- Supabase : compte + boards ---------- */
@@ -391,20 +423,24 @@ function noteEl(n){
   let el=noteEls.get(n.id);
   if(!el){
     el=document.createElement('div'); el.className='note';
-    el.innerHTML=`<div class="head"><span class="theme"></span><span class="due"></span><span class="prio"><i></i><i></i><i></i></span><button class="opts" title="Thème, priorité et deadline">⋯</button></div>
+    el.innerHTML=`<div class="head"><span class="theme"></span><span class="due"></span><span class="prio"><i></i><i></i><i></i></span><button class="big" title="Déployer en plein écran">⤢</button><button class="opts" title="Thème, priorité et deadline">⋯</button></div>
       <textarea placeholder="À faire…"></textarea>
-      <div class="foot"><button class="del">Supprimer</button><button class="done">✓ Terminé</button></div>`;
+      <div class="foot"><button class="del">Supprimer</button><button class="done">✓ Terminé</button></div>
+      <span class="grip" title="Redimensionner"></span>`;
     canvas.appendChild(el); noteEls.set(n.id,el);
     const ta=el.querySelector('textarea');
     ta.value=n.text;
     ta.addEventListener('input',()=>{n.text=ta.value;save();});
     ta.addEventListener('pointerdown',e=>e.stopPropagation());
     el.querySelector('.opts').onclick=()=>openNoteSheet(n);
+    el.querySelector('.big').onclick=()=>openFull(n);
     el.querySelector('.done').onclick=()=>{n.done=true;n.doneAt=Date.now();save();renderAll();cheer();};
     el.querySelector('.del').onclick=()=>{ if(confirm('Supprimer ce post-it ?')){state.notes=state.notes.filter(x=>x!==n);el.remove();noteEls.delete(n.id);save();renderAll();} };
-    makeDraggable(el,n);
+    makeDraggable(el,n); makeResizable(el,n);
   }
   el.style.setProperty('--c',colorOf(n));
+  el.style.setProperty('--w',(n.w||NW)+'px');
+  el.style.setProperty('--h',(n.h||NH)+'px');
   el.style.setProperty('--r',n.r+'deg');
   el.style.left=n.x+'px'; el.style.top=n.y+'px'; el.style.zIndex=n.z;
   el.querySelector('.theme').textContent=themeOf(n.theme)?.name||'Sans thème';
@@ -444,6 +480,28 @@ function makeDraggable(el,n){
   });
   const up=e=>{ if(!head.hasPointerCapture(e.pointerId)) return; head.releasePointerCapture(e.pointerId); el.classList.remove('drag'); save(); };
   head.addEventListener('pointerup',up); head.addEventListener('pointercancel',up);
+}
+
+/* ---------- Taille libre de chaque post-it ---------- */
+const NW=240, NH=200, MINW=170, MINH=150, MAXW=760, MAXH=760;
+function makeResizable(el,n){
+  const g=el.querySelector('.grip');
+  let sx,sy,ow,oh;
+  g.addEventListener('pointerdown',e=>{
+    e.stopPropagation(); g.setPointerCapture(e.pointerId);
+    sx=e.clientX; sy=e.clientY; ow=n.w||NW; oh=n.h||NH;
+    n.z=++state.z; el.style.zIndex=n.z; el.classList.add('sizing');
+  });
+  g.addEventListener('pointermove',e=>{
+    if(!g.hasPointerCapture(e.pointerId)) return;
+    // le doigt bouge a l'ecran, la note vit dans le calque : on divise par le zoom
+    n.w=Math.max(MINW,Math.min(MAXW,CW-n.x,ow+(e.clientX-sx)/view.k));
+    n.h=Math.max(MINH,Math.min(MAXH,CH-n.y,oh+(e.clientY-sy)/view.k));
+    el.style.setProperty('--w',n.w+'px'); el.style.setProperty('--h',n.h+'px');
+  });
+  const up=e=>{ if(!g.hasPointerCapture(e.pointerId)) return; g.releasePointerCapture(e.pointerId);
+    el.classList.remove('sizing'); save(); };
+  g.addEventListener('pointerup',up); g.addEventListener('pointercancel',up);
 }
 
 /* ---------- Vue : deplacement au doigt + pincer pour zoomer ---------- */
@@ -563,6 +621,28 @@ function openNoteSheet(n){
   document.getElementById('dueClear').onclick=()=>{n.due=null;save();renderAll();openNoteSheet(n);};
   document.getElementById('noteSheet').classList.add('open');
 }
+
+/* Post-it deploye en plein ecran : de la place pour lire et ecrire */
+let fullNote=null;
+const fullBox=document.getElementById('full'), fullText=document.getElementById('fullText');
+function openFull(n){
+  fullNote=n;
+  document.getElementById('fullCard').style.setProperty('--c',colorOf(n));
+  document.getElementById('fullTheme').textContent=themeOf(n.theme)?.name||'Sans thème';
+  const d=dueInfo(n), fd=document.getElementById('fullDue');
+  fd.textContent=d?d.txt:''; fd.className='due'+(d?' on '+d.cls:'');
+  fullText.value=n.text;
+  fullBox.classList.add('on');
+  setTimeout(()=>{fullText.focus();fullText.setSelectionRange(fullText.value.length,fullText.value.length);},60);
+}
+function closeFull(){ fullBox.classList.remove('on'); fullNote=null; renderAll(); }
+fullText.addEventListener('input',()=>{
+  if(!fullNote) return;
+  fullNote.text=fullText.value; save();
+  const el=noteEls.get(fullNote.id); if(el) el.querySelector('textarea').value=fullNote.text;
+});
+document.getElementById('fullClose').onclick=closeFull;
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&fullNote) closeFull(); });
 
 /* Gestion des thèmes */
 function renderThemes(){

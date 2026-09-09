@@ -7,6 +7,8 @@ Bureau virtuel de post-its pour tablette Android, avec comptes, profils, thèmes
 - Un compte peut contenir plusieurs profils (Amira, etc.) ; chaque profil est un bureau séparé.
 - Deadline optionnelle par post-it, avec compte à rebours dans l'en-tête (`J-3`, `H-12`, `En retard`).
 - Les tâches terminées s'empilent à droite, groupées par thème et dépliables en accordéon.
+- Chaque post-it se redimensionne par la poignée en bas à droite (170x150 à 760x760),
+  et le bouton ⤢ le déploie en plein écran pour lire et écrire confortablement.
 - Bureau de 3000 x 2000 px : on le déplace au doigt et on pince pour zoomer (40 % à 180 %).
   Le cadrage est mémorisé par profil et par appareil.
 
