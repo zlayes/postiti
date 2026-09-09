@@ -24,13 +24,16 @@
   .sep{width:1px;height:28px;background:#444a52;flex:0 0 auto;margin:0 4px}
   #add{background:var(--paper);color:var(--ink);font-weight:600}
 
-  /* Bureau */
-  #desk{position:absolute;inset:56px 0 0 0;overflow:hidden;touch-action:none;
+  /* Bureau : #desk = fenetre fixe, #canvas = grande surface deplacable/zoomable */
+  #desk{position:absolute;inset:56px 0 0 0;overflow:hidden;touch-action:none;cursor:grab;
+    background:radial-gradient(circle at 50% 0,#454b54 0,transparent 60%),var(--desk2)}
+  #desk.grabbing{cursor:grabbing}
+  #canvas{position:absolute;left:0;top:0;width:3000px;height:2000px;transform-origin:0 0;
     background:
-      radial-gradient(circle at 50% 0,#454b54 0,transparent 60%),
-      repeating-linear-gradient(0deg,transparent 0 39px,rgba(255,255,255,.035) 39px 40px),
-      repeating-linear-gradient(90deg,transparent 0 39px,rgba(255,255,255,.035) 39px 40px),
-      var(--desk)}
+      repeating-linear-gradient(0deg,transparent 0 39px,rgba(255,255,255,.04) 39px 40px),
+      repeating-linear-gradient(90deg,transparent 0 39px,rgba(255,255,255,.04) 39px 40px),
+      var(--desk);
+    box-shadow:0 0 0 1px rgba(255,255,255,.08),0 30px 80px rgba(0,0,0,.35)}
   #empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:18px;pointer-events:none;text-align:center;padding:24px}
 
   /* Post-it */
@@ -52,6 +55,50 @@
   .note .foot button{height:34px;padding:0 10px;border-radius:6px;font-size:14px;opacity:.75}
   .note .foot .done{font-weight:600;opacity:1}
   .note .foot button:active{background:rgba(0,0,0,.1)}
+  /* Compte a rebours */
+  .note .due{display:none;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;
+    background:rgba(0,0,0,.12);flex:0 0 auto;letter-spacing:.3px}
+  .note .due.on{display:inline-block}
+  .note .due.soon{background:#e8890c;color:#fff}
+  .note .due.late{background:#c0392b;color:#fff}
+
+  /* Pile des taches closes, a droite */
+  #rail{position:fixed;right:8px;top:64px;bottom:64px;width:190px;z-index:44;display:none;
+    flex-direction:column;background:rgba(20,23,27,.82);border-radius:12px;overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  #rail.on{display:flex}
+  #rail .top{display:flex;align-items:center;gap:6px;padding:9px 11px;color:var(--bar-ink);
+    font-size:12px;letter-spacing:.3px;border-bottom:1px solid rgba(255,255,255,.08);flex:0 0 auto}
+  #rail .top .n{margin-left:auto;opacity:.6}
+  #railList{overflow-y:auto;padding:6px}
+  #railList .empty{color:var(--muted);font-size:12px;padding:10px;text-align:center}
+  .grp{margin-bottom:6px}
+  .grp .gh{display:flex;align-items:center;gap:7px;width:100%;padding:8px 9px;border-radius:8px;
+    background:rgba(255,255,255,.06);color:var(--bar-ink);font-size:13px;text-align:left}
+  .grp .gh .sw{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+  .grp .gh .gn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .grp .gh .gc{opacity:.6;font-size:12px}
+  .grp .gh .ar{opacity:.6;transition:transform .25s ease;font-size:11px}
+  .grp.open .gh .ar{transform:rotate(180deg)}
+  .grp .gb{max-height:0;overflow:hidden;transition:max-height .28s ease}
+  .grp.open .gb{max-height:52vh;overflow-y:auto}
+  .grp .it{display:flex;align-items:flex-start;gap:6px;padding:7px 8px;margin:4px 0 0;
+    border-radius:8px;background:rgba(255,255,255,.04);color:var(--bar-ink);font-size:12px}
+  .grp .it .tx{flex:1;line-height:1.3;word-break:break-word;opacity:.85}
+  .grp .it .dt{display:block;font-size:10px;opacity:.5;margin-top:3px}
+  .grp .it button{width:24px;height:24px;border-radius:6px;font-size:12px;opacity:.6;flex:0 0 auto}
+  .grp .it button:active{background:rgba(255,255,255,.12)}
+
+  /* Zoom */
+  #zoomBox{position:fixed;right:8px;bottom:12px;z-index:44;display:flex;gap:1px;
+    background:rgba(20,23,27,.82);border-radius:10px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+  #zoomBox button{height:38px;min-width:44px;color:var(--bar-ink);font-size:16px}
+  #zoomBox button:active{background:rgba(255,255,255,.12)}
+  #zoomPct{font-size:12px!important;min-width:56px!important;opacity:.75}
+  @media (max-width:640px){
+    #rail{width:150px}
+    #zoomBox button{min-width:38px}
+  }
 
 
   /* Compagnon */
@@ -144,10 +191,9 @@
   <button id="hideNone" class="chip">Masquer sans thème</button>
   <button id="themesBtn" class="chip">Thèmes</button>
   <button id="profBtn" class="chip">👤 <span id="profName"></span></button>
-  <button id="archBtn" class="chip">Archives <span class="cnt" id="archCnt"></span></button>
 </div>
 
-<div id="desk"><div id="buddy" title="Poulpo">
+<div id="desk"><div id="canvas"></div><div id="buddy" title="Poulpo">
   <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
     <g transform="translate(0,52)">
       <path class="tent" d="M22 0c-2 14-14 20-10 34" stroke="#7c4dbb" stroke-width="7" fill="none" stroke-linecap="round"/>
@@ -169,10 +215,26 @@
 </div>
 <div id="empty">Aucun post-it ici.<br>Touche « + Post-it » pour commencer.</div></div>
 
+<!-- Pile des tâches closes -->
+<div id="rail">
+  <div class="top">TERMINÉ <span class="n" id="railCnt">0</span></div>
+  <div id="railList"></div>
+</div>
+
+<!-- Zoom -->
+<div id="zoomBox">
+  <button id="zoomOut" title="Dézoomer">−</button>
+  <button id="zoomPct" title="Revenir à 100 % et recentrer">100%</button>
+  <button id="zoomIn" title="Zoomer">+</button>
+</div>
+
 <!-- Choix thème / priorité d'une note -->
 <div class="sheet" id="noteSheet"><div class="panel">
   <h2>Thème</h2><div class="opt" id="optTheme"></div>
   <h2 style="margin-top:16px">Priorité</h2><div class="opt" id="optPrio"></div>
+  <h2 style="margin-top:16px">Deadline</h2>
+  <div class="opt" id="optDue"></div>
+  <div class="row"><input type="date" id="dueDate" style="flex:1;height:40px;font:inherit;font-size:16px;padding:0 10px;border:1px solid #cfcbc0;border-radius:8px;background:#fff"><button id="dueClear">Aucune</button></div>
   <button class="close" data-close>Fermer</button>
 </div></div>
 
@@ -190,13 +252,6 @@
   <div id="profList"></div>
   <div class="row"><input type="text" id="newProf" placeholder="Prénom"><button class="primary" id="addProf">Créer</button></div>
   <div class="row"><span class="name" style="font-size:14px;color:#777">Compte : <span id="acctMail"></span></span><button id="logout">Déconnexion</button></div>
-  <button class="close" data-close>Fermer</button>
-</div></div>
-
-<!-- Archives -->
-<div class="sheet" id="archSheet"><div class="panel">
-  <h2>Archives</h2>
-  <div id="archList"></div>
   <button class="close" data-close>Fermer</button>
 </div></div>
 
@@ -280,8 +335,27 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 const themeOf=id=>state.themes.find(t=>t.id===id);
 const colorOf=n=>themeOf(n.theme)?.color||'#fff7c2';
 
+/* Deadline : n.due vaut 'AAAA-MM-JJ' ou rien. L'echeance tombe en fin de journee. */
+const isoIn=days=>{const d=new Date();d.setDate(d.getDate()+days);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+function dueInfo(n){
+  if(!n.due) return null;
+  const [y,m,d]=n.due.split('-').map(Number); if(!y) return null;
+  const now=new Date();
+  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const days=Math.round((new Date(y,m-1,d)-today)/86400000);
+  if(days<0) return {txt:'En retard',cls:'late'};
+  if(days===0){
+    const h=Math.max(0,Math.ceil((new Date(y,m-1,d,23,59,59)-now)/3600000));
+    return {txt:'H-'+h,cls:'soon'};
+  }
+  if(days===1) return {txt:'J-1',cls:'soon'};
+  return {txt:'J-'+days,cls:''};
+}
+
 /* ---------- Rendu ---------- */
-const desk=document.getElementById('desk'), empty=document.getElementById('empty');
+const desk=document.getElementById('desk'), canvas=document.getElementById('canvas'),
+      empty=document.getElementById('empty');
 const noteEls=new Map();
 
 function visible(n){
@@ -311,17 +385,16 @@ function renderBar(){
   mk('none','Sans thème');
   const h=document.getElementById('hideNone'); h.classList.toggle('on',state.hideNone);
   document.getElementById('profName').textContent=profiles.current;
-  document.getElementById('archCnt').textContent=state.notes.filter(n=>n.done).length||'';
 }
 
 function noteEl(n){
   let el=noteEls.get(n.id);
   if(!el){
     el=document.createElement('div'); el.className='note';
-    el.innerHTML=`<div class="head"><span class="theme"></span><span class="prio"><i></i><i></i><i></i></span><button class="opts" title="Thème et priorité">⋯</button></div>
+    el.innerHTML=`<div class="head"><span class="theme"></span><span class="due"></span><span class="prio"><i></i><i></i><i></i></span><button class="opts" title="Thème, priorité et deadline">⋯</button></div>
       <textarea placeholder="À faire…"></textarea>
       <div class="foot"><button class="del">Supprimer</button><button class="done">✓ Terminé</button></div>`;
-    desk.appendChild(el); noteEls.set(n.id,el);
+    canvas.appendChild(el); noteEls.set(n.id,el);
     const ta=el.querySelector('textarea');
     ta.value=n.text;
     ta.addEventListener('input',()=>{n.text=ta.value;save();});
@@ -335,6 +408,8 @@ function noteEl(n){
   el.style.setProperty('--r',n.r+'deg');
   el.style.left=n.x+'px'; el.style.top=n.y+'px'; el.style.zIndex=n.z;
   el.querySelector('.theme').textContent=themeOf(n.theme)?.name||'Sans thème';
+  const di=dueInfo(n), db=el.querySelector('.due');
+  db.textContent=di?di.txt:''; db.className='due'+(di?' on '+di.cls:'');
   el.querySelectorAll('.prio i').forEach((d,i)=>d.classList.toggle('on',i<n.prio));
   el.classList.toggle('hide',!visible(n));
   return el;
@@ -345,7 +420,10 @@ function renderAll(){
   state.notes.forEach(noteEl);
   [...noteEls.keys()].forEach(id=>{ if(!state.notes.find(n=>n.id===id)){noteEls.get(id).remove();noteEls.delete(id);} });
   empty.style.display=state.notes.some(visible)?'none':'grid';
+  renderRail();
 }
+/* les compteurs J- / H- se rafraichissent tout seuls */
+setInterval(()=>{ if(started) state.notes.forEach(n=>{ if(n.due&&!n.done) noteEl(n); }); },60000);
 
 /* ---------- Drag tactile ---------- */
 function makeDraggable(el,n){
@@ -360,20 +438,105 @@ function makeDraggable(el,n){
   head.addEventListener('pointermove',e=>{
     if(!head.hasPointerCapture(e.pointerId)) return;
     const dx=e.clientX-sx, dy=e.clientY-sy; if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
-    const r=desk.getBoundingClientRect();
-    n.x=Math.max(0,Math.min(r.width-el.offsetWidth,ox+dx));
-    n.y=Math.max(0,Math.min(r.height-el.offsetHeight,oy+dy));
+    n.x=Math.max(0,Math.min(CW-el.offsetWidth,ox+dx/view.k));
+    n.y=Math.max(0,Math.min(CH-el.offsetHeight,oy+dy/view.k));
     el.style.left=n.x+'px'; el.style.top=n.y+'px';
   });
   const up=e=>{ if(!head.hasPointerCapture(e.pointerId)) return; head.releasePointerCapture(e.pointerId); el.classList.remove('drag'); save(); };
   head.addEventListener('pointerup',up); head.addEventListener('pointercancel',up);
 }
 
+/* ---------- Vue : deplacement au doigt + pincer pour zoomer ---------- */
+const CW=3000, CH=2000, MINK=.4, MAXK=1.8;
+let view={x:0,y:0,k:1};
+
+function clampView(){
+  const vw=desk.clientWidth, vh=desk.clientHeight, cw=CW*view.k, ch=CH*view.k;
+  view.x = cw<=vw ? (vw-cw)/2 : Math.min(0,Math.max(vw-cw,view.x));
+  view.y = ch<=vh ? (vh-ch)/2 : Math.min(0,Math.max(vh-ch,view.y));
+}
+function applyView(persist){
+  clampView();
+  canvas.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.k})`;
+  document.getElementById('zoomPct').textContent=Math.round(view.k*100)+'%';
+  if(persist!==false) saveView();
+}
+function saveView(){ try{ if(boardId) localStorage.setItem('postits-view:'+boardId,JSON.stringify(view)); }catch(e){} }
+function loadView(){
+  view={x:0,y:0,k:1};
+  try{ const v=JSON.parse(localStorage.getItem('postits-view:'+boardId)||'null');
+       if(v&&typeof v.k==='number') view={x:+v.x||0,y:+v.y||0,k:Math.max(MINK,Math.min(MAXK,v.k))}; }catch(e){}
+  applyView(false);
+}
+const toWorld=(cx,cy)=>{const r=desk.getBoundingClientRect();
+  return {x:(cx-r.left-view.x)/view.k, y:(cy-r.top-view.y)/view.k};};
+function zoomAt(k2,cx,cy){
+  const r=desk.getBoundingClientRect(), px=cx-r.left, py=cy-r.top;
+  k2=Math.max(MINK,Math.min(MAXK,k2));
+  view.x=px-(px-view.x)*(k2/view.k); view.y=py-(py-view.y)*(k2/view.k); view.k=k2;
+  applyView();
+}
+/* recentrer : 100 % et on vise le milieu des post-its affiches */
+function resetView(){
+  const ns=state.notes.filter(visible);
+  view.k=1;
+  if(ns.length){
+    const cx=ns.reduce((s,n)=>s+n.x+120,0)/ns.length, cy=ns.reduce((s,n)=>s+n.y+100,0)/ns.length;
+    view.x=desk.clientWidth/2-cx; view.y=desk.clientHeight/2-cy;
+  } else { view.x=desk.clientWidth/2-CW/2; view.y=desk.clientHeight/2-CH/2; }
+  applyView();
+}
+document.getElementById('zoomIn').onclick=()=>zoomAt(view.k*1.25,desk.clientWidth/2,desk.clientHeight/2+56);
+document.getElementById('zoomOut').onclick=()=>zoomAt(view.k/1.25,desk.clientWidth/2,desk.clientHeight/2+56);
+document.getElementById('zoomPct').onclick=resetView;
+
+const pts=new Map();
+let panning=false, pan0=null, pinch0=null;
+const pinchNow=()=>{const [a,b]=[...pts.values()];
+  return {d:Math.hypot(a.x-b.x,a.y-b.y),mx:(a.x+b.x)/2,my:(a.y+b.y)/2};};
+
+desk.addEventListener('pointerdown',e=>{
+  if(e.target.closest('.note')||e.target.closest('#buddy')) return;  // geres ailleurs
+  desk.setPointerCapture(e.pointerId);
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pts.size===1){ panning=true; desk.classList.add('grabbing');
+    pan0={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y}; }
+  else if(pts.size===2){ panning=false; const s=pinchNow();
+    pinch0={...s,k:view.k,vx:view.x,vy:view.y}; }
+});
+desk.addEventListener('pointermove',e=>{
+  if(!pts.has(e.pointerId)) return;
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pts.size>=2&&pinch0){
+    const s=pinchNow(), k2=Math.max(MINK,Math.min(MAXK,pinch0.k*(s.d/pinch0.d)));
+    const r=desk.getBoundingClientRect(), px=pinch0.mx-r.left, py=pinch0.my-r.top;
+    view.k=k2;
+    view.x=px-(px-pinch0.vx)*(k2/pinch0.k)+(s.mx-pinch0.mx);
+    view.y=py-(py-pinch0.vy)*(k2/pinch0.k)+(s.my-pinch0.my);
+    applyView(false);
+  } else if(panning&&pan0){
+    view.x=pan0.vx+(e.clientX-pan0.x); view.y=pan0.vy+(e.clientY-pan0.y);
+    applyView(false);
+  }
+});
+const endPan=e=>{ pts.delete(e.pointerId); if(pts.size<2) pinch0=null;
+  if(!pts.size){ panning=false; desk.classList.remove('grabbing'); saveView(); } };
+desk.addEventListener('pointerup',endPan); desk.addEventListener('pointercancel',endPan);
+desk.addEventListener('wheel',e=>{
+  e.preventDefault();
+  if(e.ctrlKey) zoomAt(view.k*(e.deltaY<0?1.12:.89),e.clientX,e.clientY);
+  else { view.x-=e.deltaX; view.y-=e.deltaY; applyView(); }
+},{passive:false});
+window.addEventListener('resize',()=>applyView(false));
+
 /* ---------- Actions ---------- */
 document.getElementById('add').onclick=()=>{
   const r=desk.getBoundingClientRect();
+  const c=toWorld(r.left+r.width/2,r.top+r.height/2);   // au milieu de ce qu'on voit
   const n={id:uid(),text:'',theme:state.filter!=='all'&&state.filter!=='none'?state.filter:null,prio:0,
-    x:40+Math.random()*Math.max(0,r.width-320),y:40+Math.random()*Math.max(0,r.height-280),
+    due:null,
+    x:Math.max(0,Math.min(CW-240,c.x-120+(Math.random()*60-30))),
+    y:Math.max(0,Math.min(CH-200,c.y-100+(Math.random()*60-30))),
     z:++state.z,r:(Math.random()*4-2).toFixed(1),done:false};
   state.notes.push(n); save(); renderAll();
   setTimeout(()=>noteEl(n).querySelector('textarea').focus(),50);
@@ -391,6 +554,13 @@ function openNoteSheet(n){
   mk(null,'Sans thème'); state.themes.forEach(t=>mk(t.id,t.name,t.color));
   const op=document.getElementById('optPrio'); op.innerHTML='';
   ['Aucune','Basse','Moyenne','Haute'].forEach((l,i)=>{const b=document.createElement('button');b.className=n.prio===i?'on':'';b.textContent=l;b.onclick=()=>{n.prio=i;save();renderAll();openNoteSheet(n);};op.appendChild(b);});
+  const od=document.getElementById('optDue'); od.innerHTML='';
+  [["Aujourd'hui",0],['Demain',1],['Dans 3 jours',3],['Dans une semaine',7]].forEach(([l,d])=>{
+    const iso=isoIn(d); const b=document.createElement('button'); b.className=n.due===iso?'on':'';
+    b.textContent=l; b.onclick=()=>{n.due=iso;save();renderAll();openNoteSheet(n);}; od.appendChild(b);});
+  const dd=document.getElementById('dueDate'); dd.value=n.due||'';
+  dd.onchange=()=>{n.due=dd.value||null;save();renderAll();};
+  document.getElementById('dueClear').onclick=()=>{n.due=null;save();renderAll();openNoteSheet(n);};
   document.getElementById('noteSheet').classList.add('open');
 }
 
@@ -415,21 +585,45 @@ document.getElementById('newTheme').onclick=()=>{
   document.getElementById('newName').value=''; save();renderAll();renderThemes();
 };
 
-/* Archives */
-function renderArch(){
-  const l=document.getElementById('archList'); l.innerHTML='';
-  const done=state.notes.filter(n=>n.done).sort((a,b)=>b.doneAt-a.doneAt);
-  if(!done.length){l.innerHTML='<p style="color:#777">Rien d\'archivé pour l\'instant.</p>';return;}
-  done.forEach(n=>{
-    const r=document.createElement('div'); r.className='row arch';
-    const t=themeOf(n.theme);
-    r.innerHTML=`<span class="sw" style="background:${colorOf(n)}"></span><div class="txt">${(n.text||'(vide)').replace(/</g,'&lt;')}<div class="meta">${t?t.name+' · ':''}${new Date(n.doneAt).toLocaleDateString('fr-FR')}</div></div><button class="re">Restaurer</button><button class="rm">✕</button>`;
-    r.querySelector('.re').onclick=()=>{n.done=false;n.z=++state.z;save();renderAll();renderArch();};
-    r.querySelector('.rm').onclick=()=>{state.notes=state.notes.filter(x=>x!==n);save();renderAll();renderArch();};
-    l.appendChild(r);
+/* Pile des taches closes : groupees par theme, depliables en accordeon */
+const railOpen=new Set();
+function renderRail(){
+  const rail=document.getElementById('rail'), l=document.getElementById('railList');
+  const done=state.notes.filter(n=>n.done);
+  rail.classList.toggle('on',done.length>0);
+  document.getElementById('railCnt').textContent=done.length;
+  l.innerHTML='';
+  if(!done.length) return;
+  const groups=[];
+  state.themes.forEach(t=>{const ns=done.filter(n=>n.theme===t.id);
+    if(ns.length) groups.push({key:t.id,name:t.name,color:t.color,notes:ns});});
+  const sans=done.filter(n=>!themeOf(n.theme));
+  if(sans.length) groups.push({key:'none',name:'Sans thème',color:'#fff7c2',notes:sans});
+
+  groups.forEach(g=>{
+    g.notes.sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
+    const box=document.createElement('div'); box.className='grp'+(railOpen.has(g.key)?' open':'');
+    const gh=document.createElement('button'); gh.className='gh';
+    gh.innerHTML=`<span class="sw" style="background:${g.color}"></span><span class="gn"></span><span class="gc">${g.notes.length}</span><span class="ar">▾</span>`;
+    gh.querySelector('.gn').textContent=g.name;
+    gh.onclick=()=>{ railOpen.has(g.key)?railOpen.delete(g.key):railOpen.add(g.key); renderRail(); };
+    const gb=document.createElement('div'); gb.className='gb';
+    g.notes.forEach(n=>{
+      const it=document.createElement('div'); it.className='it';
+      it.innerHTML=`<span class="tx"></span><button class="re" title="Remettre sur le bureau">↺</button><button class="rm" title="Supprimer">✕</button>`;
+      const tx=it.querySelector('.tx');
+      tx.textContent=n.text||'(vide)';
+      const dt=document.createElement('span'); dt.className='dt';
+      dt.textContent=n.doneAt?new Date(n.doneAt).toLocaleDateString('fr-FR'):'';
+      tx.appendChild(dt);
+      it.querySelector('.re').onclick=()=>{n.done=false;n.z=++state.z;save();renderAll();};
+      it.querySelector('.rm').onclick=()=>{ if(confirm('Supprimer définitivement ce post-it ?')){
+        state.notes=state.notes.filter(x=>x!==n);save();renderAll();} };
+      gb.appendChild(it);
+    });
+    box.appendChild(gh); box.appendChild(gb); l.appendChild(box);
   });
 }
-document.getElementById('archBtn').onclick=()=>{renderArch();document.getElementById('archSheet').classList.add('open');};
 
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('open'));
 document.querySelectorAll('.sheet').forEach(s=>s.addEventListener('click',e=>{if(e.target===s)s.classList.remove('open');}));
@@ -490,7 +684,7 @@ async function switchProfile(name){
   boardId=b.id; profiles.current=name;
   try{ localStorage.setItem(LASTKEY,name); }catch(e){}
   noteEls.forEach(el=>el.remove()); noteEls.clear();
-  state={...freshState(),...(b.state||{})}; renderAll();
+  state={...freshState(),...(b.state||{})}; loadView(); renderAll();
   document.getElementById('profSheet').classList.remove('open');
   wake(); say(`Salut ${name} ! Content de te voir.`,3000);
 }
@@ -567,7 +761,7 @@ async function start(u){
   boardId=b.id; profiles.current=b.name;
   state={...freshState(),...(b.state||{})};
   gate.classList.remove('on'); gateMsg(''); gPass.value='';
-  renderAll(); greet();
+  loadView(); renderAll(); greet();
 }
 function stop(){
   started=false; user=null; boards=[]; boardId=null; profiles={list:[],current:''};
