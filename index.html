@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Post-its</title>
+<style>
+  :root{
+    --desk:#3a4048; --desk2:#2e343b; --ink:#1f2328; --paper:#fff7c2;
+    --bar:#22262b; --bar-ink:#e8e6df; --muted:#9aa0a6;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--desk);color:var(--ink)}
+  button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+
+  /* Barre du haut */
+  #bar{position:fixed;inset:0 0 auto 0;height:56px;background:var(--bar);color:var(--bar-ink);display:flex;align-items:center;gap:8px;padding:0 12px;z-index:50;overflow-x:auto;white-space:nowrap}
+  #bar::-webkit-scrollbar{display:none}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:18px;background:#33383f;color:var(--bar-ink);font-size:14px;flex:0 0 auto}
+  .chip .sw{width:12px;height:12px;border-radius:50%}
+  .chip.on{background:var(--bar-ink);color:var(--bar)}
+  .chip.on .cnt,.chip .cnt{opacity:.7;font-size:12px}
+  .sep{width:1px;height:28px;background:#444a52;flex:0 0 auto;margin:0 4px}
+  #add{background:var(--paper);color:var(--ink);font-weight:600}
+
+  /* Bureau */
+  #desk{position:absolute;inset:56px 0 0 0;overflow:hidden;touch-action:none;
+    background:
+      radial-gradient(circle at 50% 0,#454b54 0,transparent 60%),
+      repeating-linear-gradient(0deg,transparent 0 39px,rgba(255,255,255,.035) 39px 40px),
+      repeating-linear-gradient(90deg,transparent 0 39px,rgba(255,255,255,.035) 39px 40px),
+      var(--desk)}
+  #empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:18px;pointer-events:none;text-align:center;padding:24px}
+
+  /* Post-it */
+  .note{position:absolute;width:240px;min-height:200px;background:var(--c,var(--paper));border-radius:2px;
+    box-shadow:0 1px 2px rgba(0,0,0,.25),0 10px 24px rgba(0,0,0,.35);display:flex;flex-direction:column;
+    transform:rotate(var(--r,0deg));user-select:none}
+  .note.drag{box-shadow:0 4px 6px rgba(0,0,0,.3),0 26px 40px rgba(0,0,0,.45);transform:rotate(0deg) scale(1.03);z-index:40!important;transition:none}
+  .note.hide{display:none}
+  .note .head{height:34px;display:flex;align-items:center;gap:6px;padding:0 6px 0 10px;cursor:grab;background:rgba(0,0,0,.06);border-radius:2px 2px 0 0}
+  .note .theme{font-size:12px;font-weight:600;letter-spacing:.2px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.8}
+  .note .prio{display:flex;gap:3px;padding:6px}
+  .note .prio i{width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.15)}
+  .note .prio i.on{background:#c0392b}
+  .note .head button{width:30px;height:30px;border-radius:6px;font-size:16px;opacity:.7}
+  .note .head button:active{background:rgba(0,0,0,.1)}
+  .note textarea{flex:1;resize:none;border:0;background:transparent;font:inherit;font-size:17px;line-height:1.35;padding:10px 12px 12px;color:var(--ink);outline:none;min-height:150px;user-select:text}
+  .note textarea::placeholder{color:rgba(0,0,0,.35)}
+  .note .foot{display:flex;justify-content:space-between;padding:0 6px 6px}
+  .note .foot button{height:34px;padding:0 10px;border-radius:6px;font-size:14px;opacity:.75}
+  .note .foot .done{font-weight:600;opacity:1}
+  .note .foot button:active{background:rgba(0,0,0,.1)}
+
+
+  /* Compagnon */
+  #buddy{position:absolute;bottom:8px;left:24px;width:110px;height:110px;z-index:45;cursor:pointer;touch-action:none;transition:left 6s ease-in-out}
+  #buddy svg{width:100%;height:100%;overflow:visible}
+  #buddy .tent{transform-origin:50% 0;animation:wave 2.4s ease-in-out infinite}
+  #buddy .tent:nth-child(2){animation-delay:.3s}#buddy .tent:nth-child(3){animation-delay:.6s}#buddy .tent:nth-child(4){animation-delay:.9s}#buddy .tent:nth-child(5){animation-delay:1.2s}
+  #buddy .body{animation:bob 3s ease-in-out infinite;transform-origin:50% 60%}
+  #buddy.sleep .tent{animation-duration:6s}#buddy.sleep .body{animation-duration:6s}
+  #buddy.happy .body{animation:jump .6s ease-out 3}
+  #buddy .lid{transform-origin:center;transition:transform .12s}
+  #buddy.blink .lid,#buddy.sleep .lid{transform:scaleY(.08)}
+  #buddy .bubble{position:absolute;left:100px;top:-8px;background:#fff;color:var(--ink);padding:6px 10px;border-radius:12px;font-size:13px;white-space:nowrap;opacity:0;transition:opacity .3s;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  #buddy .bubble.on{opacity:1}
+  #buddy .zz{position:absolute;left:70px;top:0;color:#dfe3ea;font-size:16px;opacity:0}
+  #buddy.sleep .zz{animation:zz 2.5s ease-in-out infinite}
+  @keyframes wave{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  @keyframes jump{0%{transform:translateY(0)}40%{transform:translateY(-28px) scale(1.05)}100%{transform:translateY(0)}}
+  @keyframes zz{0%{opacity:0;transform:translate(0,0)}30%{opacity:1}100%{opacity:0;transform:translate(14px,-22px)}}
+  @media (prefers-reduced-motion:reduce){#buddy *{animation:none!important}}
+
+  /* Panneaux */
+  .sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:100;align-items:flex-end;justify-content:center}
+  .sheet.open{display:flex}
+  .panel{background:#f7f5ee;color:var(--ink);width:min(720px,100%);max-height:85vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 16px 28px}
+  .panel h2{margin:0 0 12px;font-size:18px}
+  .row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #e2dfd5}
+  .row .sw{width:22px;height:22px;border-radius:50%;border:1px solid rgba(0,0,0,.2)}
+  .row .name{flex:1;font-size:16px}
+  .row button{height:36px;padding:0 12px;border-radius:8px;background:#e9e6dc}
+  .row input[type=text]{flex:1;height:40px;font:inherit;font-size:16px;padding:0 10px;border:1px solid #cfcbc0;border-radius:8px;background:#fff}
+  .row input[type=color]{width:44px;height:40px;border:0;background:none;padding:0}
+  .primary{background:var(--ink)!important;color:#fff}
+  .arch{font-size:15px}
+  .arch .txt{flex:1;white-space:pre-wrap}
+  .arch .meta{font-size:12px;color:#777}
+  .close{width:100%;height:44px;margin-top:12px;border-radius:10px;background:#e9e6dc;font-size:16px}
+  .opt{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0}
+  .opt button{height:40px;padding:0 14px;border-radius:20px;border:1px solid rgba(0,0,0,.15);display:flex;align-items:center;gap:8px;font-size:15px}
+  .opt button.on{outline:2px solid var(--ink)}
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <button id="add" class="chip">+ Post-it</button>
+  <div class="sep"></div>
+  <div id="filters" style="display:contents"></div>
+  <div class="sep"></div>
+  <button id="hideNone" class="chip">Masquer sans thème</button>
+  <button id="themesBtn" class="chip">Thèmes</button>
+  <button id="profBtn" class="chip">👤 <span id="profName"></span></button>
+  <button id="archBtn" class="chip">Archives <span class="cnt" id="archCnt"></span></button>
+</div>
+
+<div id="desk"><div id="buddy" title="Poulpo">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <g transform="translate(0,52)">
+      <path class="tent" d="M22 0c-2 14-14 20-10 34" stroke="#7c4dbb" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <path class="tent" d="M36 4c-1 14-8 22-4 34" stroke="#8c5fd0" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <path class="tent" d="M50 6c0 14-2 22 0 36" stroke="#7c4dbb" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <path class="tent" d="M64 4c1 14 8 22 4 34" stroke="#8c5fd0" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <path class="tent" d="M78 0c2 14 14 20 10 34" stroke="#7c4dbb" stroke-width="7" fill="none" stroke-linecap="round"/>
+    </g>
+    <g class="body">
+      <ellipse cx="50" cy="36" rx="34" ry="30" fill="#9b6ee0"/>
+      <ellipse cx="38" cy="18" rx="10" ry="6" fill="#b58cf0" opacity=".6"/>
+      <g class="eye"><circle cx="38" cy="38" r="9" fill="#fff"/><circle class="pupil" cx="40" cy="39" r="4" fill="#1f2328"/><rect class="lid" x="29" y="29" width="18" height="18" rx="9" fill="#9b6ee0"/></g>
+      <g class="eye"><circle cx="62" cy="38" r="9" fill="#fff"/><circle class="pupil" cx="64" cy="39" r="4" fill="#1f2328"/><rect class="lid" x="53" y="29" width="18" height="18" rx="9" fill="#9b6ee0"/></g>
+      <path class="mouth" d="M43 52q7 5 14 0" stroke="#4a2a80" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="30" cy="48" r="4" fill="#e0a1c8" opacity=".6"/><circle cx="70" cy="48" r="4" fill="#e0a1c8" opacity=".6"/>
+    </g>
+  </svg>
+  <div class="bubble"></div><div class="zz">z z</div>
+</div>
+<div id="empty">Aucun post-it ici.<br>Touche « + Post-it » pour commencer.</div></div>
+
+<!-- Choix thème / priorité d'une note -->
+<div class="sheet" id="noteSheet"><div class="panel">
+  <h2>Thème</h2><div class="opt" id="optTheme"></div>
+  <h2 style="margin-top:16px">Priorité</h2><div class="opt" id="optPrio"></div>
+  <button class="close" data-close>Fermer</button>
+</div></div>
+
+<!-- Gestion des thèmes -->
+<div class="sheet" id="themeSheet"><div class="panel">
+  <h2>Thèmes</h2>
+  <div id="themeList"></div>
+  <div class="row"><input type="color" id="newColor" value="#ffd166"><input type="text" id="newName" placeholder="Nouveau thème"><button class="primary" id="newTheme">Ajouter</button></div>
+  <button class="close" data-close>Fermer</button>
+</div></div>
+
+<!-- Profils -->
+<div class="sheet" id="profSheet"><div class="panel">
+  <h2>Profils</h2>
+  <div id="profList"></div>
+  <div class="row"><input type="text" id="newProf" placeholder="Prénom"><button class="primary" id="addProf">Créer</button></div>
+  <button class="close" data-close>Fermer</button>
+</div></div>
+
+<!-- Archives -->
+<div class="sheet" id="archSheet"><div class="panel">
+  <h2>Archives</h2>
+  <div id="archList"></div>
+  <button class="close" data-close>Fermer</button>
+</div></div>
+
+<script>
+/* ---------- Persistance : window.storage (artifact) > localStorage > mémoire ---------- */
+const PKEY='postits-profiles';
+let profiles={list:['Amira'],current:'Amira'};
+const KEY=()=>'postits-v1:'+profiles.current;
+const mem={};
+async function sget(k){
+  try{ if(window.storage){ const r=await window.storage.get(k,false); return r?JSON.parse(r.value):null; } }catch(e){}
+  try{ const v=localStorage.getItem(k); if(v) return JSON.parse(v); }catch(e){}
+  return mem[k]||null;
+}
+async function sset(k,obj){
+  const v=JSON.stringify(obj); mem[k]=obj;
+  try{ if(window.storage){ await window.storage.set(k,v,false); return; } }catch(e){}
+  try{ localStorage.setItem(k,v); }catch(e){}
+}
+async function load(){ const p=await sget(PKEY); if(p) profiles=p; return sget(KEY()); }
+let saveT;
+function save(){ clearTimeout(saveT); saveT=setTimeout(()=>sset(KEY(),state),250); }
+function saveProfiles(){ return sset(PKEY,profiles); }
+
+/* ---------- État ---------- */
+const freshState=()=>({
+  themes:[
+    {id:'t1',name:'Valeo',color:'#ffd166'},
+    {id:'t2',name:'Pixelgate',color:'#8ecae6'},
+    {id:'t3',name:'Perso',color:'#b5e48c'},
+  ],
+  notes:[],      // {id,text,theme,prio,x,y,z,r,done,doneAt}
+  filter:'all',  // 'all' | themeId | 'none'
+  hideNone:false,
+  z:1
+});
+let state=freshState();
+const uid=()=>Math.random().toString(36).slice(2,9);
+const themeOf=id=>state.themes.find(t=>t.id===id);
+const colorOf=n=>themeOf(n.theme)?.color||'#fff7c2';
+
+/* ---------- Rendu ---------- */
+const desk=document.getElementById('desk'), empty=document.getElementById('empty');
+const noteEls=new Map();
+
+function visible(n){
+  if(n.done) return false;
+  if(state.filter!=='all'){
+    if(state.filter==='none') return !n.theme;
+    return n.theme===state.filter;
+  }
+  if(state.hideNone && !n.theme) return false;
+  return true;
+}
+
+function renderBar(){
+  const f=document.getElementById('filters'); f.innerHTML='';
+  const active=state.notes.filter(n=>!n.done);
+  const mk=(id,label,color)=>{
+    const b=document.createElement('button'); b.className='chip'+(state.filter===id?' on':'');
+    if(color){const s=document.createElement('span');s.className='sw';s.style.background=color;b.appendChild(s);}
+    b.appendChild(document.createTextNode(label));
+    const c=id==='all'?active.length:id==='none'?active.filter(n=>!n.theme).length:active.filter(n=>n.theme===id).length;
+    const cnt=document.createElement('span');cnt.className='cnt';cnt.textContent=' '+c;b.appendChild(cnt);
+    b.onclick=()=>{state.filter=id;save();renderAll();};
+    f.appendChild(b);
+  };
+  mk('all','Tout');
+  state.themes.forEach(t=>mk(t.id,t.name,t.color));
+  mk('none','Sans thème');
+  const h=document.getElementById('hideNone'); h.classList.toggle('on',state.hideNone);
+  document.getElementById('profName').textContent=profiles.current;
+  document.getElementById('archCnt').textContent=state.notes.filter(n=>n.done).length||'';
+}
+
+function noteEl(n){
+  let el=noteEls.get(n.id);
+  if(!el){
+    el=document.createElement('div'); el.className='note';
+    el.innerHTML=`<div class="head"><span class="theme"></span><span class="prio"><i></i><i></i><i></i></span><button class="opts" title="Thème et priorité">⋯</button></div>
+      <textarea placeholder="À faire…"></textarea>
+      <div class="foot"><button class="del">Supprimer</button><button class="done">✓ Terminé</button></div>`;
+    desk.appendChild(el); noteEls.set(n.id,el);
+    const ta=el.querySelector('textarea');
+    ta.value=n.text;
+    ta.addEventListener('input',()=>{n.text=ta.value;save();});
+    ta.addEventListener('pointerdown',e=>e.stopPropagation());
+    el.querySelector('.opts').onclick=()=>openNoteSheet(n);
+    el.querySelector('.done').onclick=()=>{n.done=true;n.doneAt=Date.now();save();renderAll();cheer();};
+    el.querySelector('.del').onclick=()=>{ if(confirm('Supprimer ce post-it ?')){state.notes=state.notes.filter(x=>x!==n);el.remove();noteEls.delete(n.id);save();renderAll();} };
+    makeDraggable(el,n);
+  }
+  el.style.setProperty('--c',colorOf(n));
+  el.style.setProperty('--r',n.r+'deg');
+  el.style.left=n.x+'px'; el.style.top=n.y+'px'; el.style.zIndex=n.z;
+  el.querySelector('.theme').textContent=themeOf(n.theme)?.name||'Sans thème';
+  el.querySelectorAll('.prio i').forEach((d,i)=>d.classList.toggle('on',i<n.prio));
+  el.classList.toggle('hide',!visible(n));
+  return el;
+}
+
+function renderAll(){
+  renderBar();
+  state.notes.forEach(noteEl);
+  [...noteEls.keys()].forEach(id=>{ if(!state.notes.find(n=>n.id===id)){noteEls.get(id).remove();noteEls.delete(id);} });
+  empty.style.display=state.notes.some(visible)?'none':'grid';
+}
+
+/* ---------- Drag tactile ---------- */
+function makeDraggable(el,n){
+  const head=el.querySelector('.head');
+  let sx,sy,ox,oy,moved;
+  head.addEventListener('pointerdown',e=>{
+    if(e.target.tagName==='BUTTON') return;
+    head.setPointerCapture(e.pointerId);
+    sx=e.clientX;sy=e.clientY;ox=n.x;oy=n.y;moved=false;
+    n.z=++state.z; el.style.zIndex=n.z; el.classList.add('drag');
+  });
+  head.addEventListener('pointermove',e=>{
+    if(!head.hasPointerCapture(e.pointerId)) return;
+    const dx=e.clientX-sx, dy=e.clientY-sy; if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
+    const r=desk.getBoundingClientRect();
+    n.x=Math.max(0,Math.min(r.width-el.offsetWidth,ox+dx));
+    n.y=Math.max(0,Math.min(r.height-el.offsetHeight,oy+dy));
+    el.style.left=n.x+'px'; el.style.top=n.y+'px';
+  });
+  const up=e=>{ if(!head.hasPointerCapture(e.pointerId)) return; head.releasePointerCapture(e.pointerId); el.classList.remove('drag'); save(); };
+  head.addEventListener('pointerup',up); head.addEventListener('pointercancel',up);
+}
+
+/* ---------- Actions ---------- */
+document.getElementById('add').onclick=()=>{
+  const r=desk.getBoundingClientRect();
+  const n={id:uid(),text:'',theme:state.filter!=='all'&&state.filter!=='none'?state.filter:null,prio:0,
+    x:40+Math.random()*Math.max(0,r.width-320),y:40+Math.random()*Math.max(0,r.height-280),
+    z:++state.z,r:(Math.random()*4-2).toFixed(1),done:false};
+  state.notes.push(n); save(); renderAll();
+  setTimeout(()=>noteEl(n).querySelector('textarea').focus(),50);
+};
+document.getElementById('hideNone').onclick=()=>{state.hideNone=!state.hideNone;save();renderAll();};
+
+/* Feuille thème/priorité d'une note */
+let curNote=null;
+function openNoteSheet(n){
+  curNote=n;
+  const ot=document.getElementById('optTheme'); ot.innerHTML='';
+  const mk=(id,label,color)=>{const b=document.createElement('button');b.className=n.theme===id?'on':'';
+    if(color){const s=document.createElement('span');s.className='sw';s.style.cssText=`width:14px;height:14px;border-radius:50%;background:${color}`;b.appendChild(s);}
+    b.appendChild(document.createTextNode(label));b.onclick=()=>{n.theme=id;save();renderAll();openNoteSheet(n);};ot.appendChild(b);};
+  mk(null,'Sans thème'); state.themes.forEach(t=>mk(t.id,t.name,t.color));
+  const op=document.getElementById('optPrio'); op.innerHTML='';
+  ['Aucune','Basse','Moyenne','Haute'].forEach((l,i)=>{const b=document.createElement('button');b.className=n.prio===i?'on':'';b.textContent=l;b.onclick=()=>{n.prio=i;save();renderAll();openNoteSheet(n);};op.appendChild(b);});
+  document.getElementById('noteSheet').classList.add('open');
+}
+
+/* Gestion des thèmes */
+function renderThemes(){
+  const l=document.getElementById('themeList'); l.innerHTML='';
+  state.themes.forEach(t=>{
+    const r=document.createElement('div'); r.className='row';
+    r.innerHTML=`<input type="color" value="${t.color}"><input type="text" value="${t.name.replace(/"/g,'&quot;')}"><button class="rm">Supprimer</button>`;
+    r.querySelector('input[type=color]').oninput=e=>{t.color=e.target.value;save();renderAll();};
+    r.querySelector('input[type=text]').oninput=e=>{t.name=e.target.value;save();renderAll();};
+    r.querySelector('.rm').onclick=()=>{ if(confirm(`Supprimer le thème « ${t.name} » ? Les post-its passeront en « sans thème ».`)){
+      state.notes.forEach(n=>{if(n.theme===t.id)n.theme=null;}); state.themes=state.themes.filter(x=>x!==t);
+      if(state.filter===t.id)state.filter='all'; save();renderAll();renderThemes(); } };
+    l.appendChild(r);
+  });
+}
+document.getElementById('themesBtn').onclick=()=>{renderThemes();document.getElementById('themeSheet').classList.add('open');};
+document.getElementById('newTheme').onclick=()=>{
+  const name=document.getElementById('newName').value.trim(); if(!name) return;
+  state.themes.push({id:uid(),name,color:document.getElementById('newColor').value});
+  document.getElementById('newName').value=''; save();renderAll();renderThemes();
+};
+
+/* Archives */
+function renderArch(){
+  const l=document.getElementById('archList'); l.innerHTML='';
+  const done=state.notes.filter(n=>n.done).sort((a,b)=>b.doneAt-a.doneAt);
+  if(!done.length){l.innerHTML='<p style="color:#777">Rien d\'archivé pour l\'instant.</p>';return;}
+  done.forEach(n=>{
+    const r=document.createElement('div'); r.className='row arch';
+    const t=themeOf(n.theme);
+    r.innerHTML=`<span class="sw" style="background:${colorOf(n)}"></span><div class="txt">${(n.text||'(vide)').replace(/</g,'&lt;')}<div class="meta">${t?t.name+' · ':''}${new Date(n.doneAt).toLocaleDateString('fr-FR')}</div></div><button class="re">Restaurer</button><button class="rm">✕</button>`;
+    r.querySelector('.re').onclick=()=>{n.done=false;n.z=++state.z;save();renderAll();renderArch();};
+    r.querySelector('.rm').onclick=()=>{state.notes=state.notes.filter(x=>x!==n);save();renderAll();renderArch();};
+    l.appendChild(r);
+  });
+}
+document.getElementById('archBtn').onclick=()=>{renderArch();document.getElementById('archSheet').classList.add('open');};
+
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('open'));
+document.querySelectorAll('.sheet').forEach(s=>s.addEventListener('click',e=>{if(e.target===s)s.classList.remove('open');}));
+
+
+/* ---------- Compagnon : Poulpo ---------- */
+const buddy=document.getElementById('buddy'), bubble=buddy.querySelector('.bubble'), mouth=buddy.querySelector('.mouth');
+let lastAct=Date.now(), bubT;
+function say(t,ms=2500){bubble.textContent=t;bubble.classList.add('on');clearTimeout(bubT);bubT=setTimeout(()=>bubble.classList.remove('on'),ms);}
+function wake(){lastAct=Date.now();if(buddy.classList.contains('sleep')){buddy.classList.remove('sleep');mouth.setAttribute('d','M43 52q7 5 14 0');}}
+document.addEventListener('pointerdown',wake);document.addEventListener('keydown',wake);
+/* clignement */
+(function blink(){setTimeout(()=>{if(!buddy.classList.contains('sleep')){buddy.classList.add('blink');setTimeout(()=>buddy.classList.remove('blink'),140);}blink();},2500+Math.random()*4000);})();
+/* les yeux suivent le doigt / la souris */
+document.addEventListener('pointermove',e=>{const r=buddy.getBoundingClientRect();const cx=r.left+r.width/2,cy=r.top+r.height*.4;
+  const a=Math.atan2(e.clientY-cy,e.clientX-cx);const dx=Math.cos(a)*3,dy=Math.sin(a)*2.5;
+  buddy.querySelectorAll('.pupil').forEach((p,i)=>{p.setAttribute('cx',(i?62:38)+dx);p.setAttribute('cy',38+dy);});});
+/* balade le long du bureau */
+(function wander(){setTimeout(()=>{if(!buddy.classList.contains('sleep')){const w=desk.clientWidth-140;buddy.style.left=(20+Math.random()*Math.max(0,w))+'px';}wander();},9000+Math.random()*14000);})();
+/* sieste quand tu ne fais rien */
+setInterval(()=>{if(Date.now()-lastAct>90000&&!buddy.classList.contains('sleep')){buddy.classList.add('sleep');mouth.setAttribute('d','M45 53h10');}},5000);
+/* humeurs */
+const N=()=>profiles.current;
+const cheers=[()=>`Bravo ${N()} !`,()=>`Un de moins, ${N()}.`,'Et hop.','Ça avance bien.',()=>`Tu vois ${N()}, ça paie.`,'Encore un de réglé !'];
+const hellos=[()=>`Coucou ${N()}.`,()=>`Tu bosses bien, ${N()} ?`,'Je surveille tes post-its.','Glou glou.',n=>`Encore ${n} à faire, ${N()}.`,'Un café ?',()=>`Fière de toi, ${N()}.`];
+const advice=[
+  ()=>`${N()}, commence par la tâche que tu évites le plus.`,
+  'Une tâche à la fois. Le reste attendra.',
+  ()=>`${N()}, si ça prend moins de 2 minutes, fais-le maintenant.`,
+  'Pense à boire de l\'eau.',
+  ()=>`Lève-toi et étire-toi, ${N()}. Deux minutes.`,
+  'Un gros post-it ? Découpe-le en trois petits.',
+  ()=>`Tu avances plus que tu ne le crois, ${N()}.`,
+  'Fini vaut mieux que parfait.',
+  ()=>`${N()}, respire. Puis un seul post-it.`,
+  'Chaque post-it archivé est une victoire.',
+  ()=>`Fais une pause de 5 minutes, ${N()}. Tu l'as méritée.`,
+  'Priorité haute d\'abord, le reste ensuite.',
+];
+const pick=(a,n)=>{const v=a[Math.random()*a.length|0];return typeof v==='function'?v(n):v;};
+function cheer(){wake();buddy.classList.add('happy');say(pick(cheers));setTimeout(()=>buddy.classList.remove('happy'),1900);}
+buddy.addEventListener('pointerdown',e=>{e.stopPropagation();wake();const n=state.notes.filter(x=>!x.done).length;
+  say(Math.random()<.5?pick(hellos,n):pick(advice),3500);buddy.classList.add('happy');setTimeout(()=>buddy.classList.remove('happy'),700);});
+/* conseils et motivation spontanés */
+setInterval(()=>{if(buddy.classList.contains('sleep')||Math.random()>.45)return;
+  const hi=state.notes.filter(x=>!x.done&&x.prio===3).length;
+  if(hi&&Math.random()<.4)say(hi===1?`${N()}, une priorité haute t'attend.`:`${N()}, ${hi} priorités hautes t'attendent.`,3500);
+  else say(pick(advice),4000);},75000);
+/* accueil au lancement */
+function greet(){const h=new Date().getHours();const w=h<12?'Bonjour':h<18?'Bon après-midi':'Bonsoir';const n=state.notes.filter(x=>!x.done).length;
+  setTimeout(()=>say(n?`${w} ${N()} ! ${n} post-it${n>1?'s':''} sur le bureau. On y va ?`:`${w} ${N()} ! Bureau vide, on pose un post-it ?`,4500),800);}
+
+/* Profils */
+async function switchProfile(name){
+  clearTimeout(saveT); await sset(KEY(),state);
+  profiles.current=name; if(!profiles.list.includes(name)) profiles.list.push(name);
+  await saveProfiles();
+  noteEls.forEach(el=>el.remove()); noteEls.clear();
+  state=(await sget(KEY()))||freshState(); renderAll();
+  document.getElementById('profSheet').classList.remove('open');
+  wake(); say(`Salut ${name} ! Content de te voir.`,3000);
+}
+function renderProfiles(){
+  const l=document.getElementById('profList'); l.innerHTML='';
+  profiles.list.forEach(n=>{
+    const r=document.createElement('div'); r.className='row';
+    r.innerHTML=`<span class="name">${n.replace(/</g,'&lt;')}${n===profiles.current?' <span style="color:#777;font-size:13px">(actif)</span>':''}</span><button class="use">Utiliser</button><button class="rm">✕</button>`;
+    r.querySelector('.use').onclick=()=>switchProfile(n);
+    r.querySelector('.rm').onclick=()=>{ if(profiles.list.length<2){alert('Il faut garder au moins un profil.');return;}
+      if(confirm(`Supprimer le profil « ${n} » et tous ses post-its ?`)){ profiles.list=profiles.list.filter(x=>x!==n);
+        try{localStorage.removeItem('postits-v1:'+n);}catch(e){} try{window.storage&&window.storage.delete('postits-v1:'+n,false);}catch(e){}
+        if(profiles.current===n) switchProfile(profiles.list[0]); else {saveProfiles();renderProfiles();} } };
+    l.appendChild(r);
+  });
+}
+document.getElementById('profBtn').onclick=()=>{renderProfiles();document.getElementById('profSheet').classList.add('open');};
+document.getElementById('addProf').onclick=()=>{const n=document.getElementById('newProf').value.trim();if(!n)return;document.getElementById('newProf').value='';switchProfile(n);};
+
+/* ---------- Démarrage ---------- */
+load().then(s=>{ if(s){ state={...state,...s}; } renderAll(); greet(); });
+</script>
+</body>
+</html>
