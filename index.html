@@ -93,12 +93,51 @@
   .opt{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0}
   .opt button{height:40px;padding:0 14px;border-radius:20px;border:1px solid rgba(0,0,0,.15);display:flex;align-items:center;gap:8px;font-size:15px}
   .opt button.on{outline:2px solid var(--ink)}
+
+  /* Mur de connexion */
+  #gate{position:fixed;inset:0;z-index:200;display:none;place-items:center;padding:24px;
+    background:radial-gradient(circle at 50% 15%,#4a505a 0,var(--desk2) 70%)}
+  #gate.on{display:grid}
+  #gate .card{background:#f7f5ee;color:var(--ink);width:min(380px,100%);border-radius:16px;padding:22px;
+    box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  #gate h1{margin:0 0 4px;font-size:22px}
+  #gate .sub{margin:0 0 6px;color:#777;font-size:14px;line-height:1.4}
+  #gate label{display:block;font-size:13px;color:#777;margin:14px 0 4px}
+  #gate input{width:100%;height:46px;font:inherit;font-size:16px;padding:0 12px;
+    border:1px solid #cfcbc0;border-radius:10px;background:#fff}
+  #gate .acts{display:flex;gap:8px;margin-top:18px}
+  #gate .acts button{flex:1;height:46px;border-radius:10px;font-size:15px;background:#e9e6dc}
+  #gate .acts .primary{background:var(--ink);color:#fff;font-weight:600}
+  #gate .msg{margin-top:14px;font-size:14px;min-height:20px;line-height:1.4}
+  #gate .msg.err{color:#c0392b}
+  #gate .msg.ok{color:#2e7d32}
+  #gate .busy{opacity:.55;pointer-events:none}
+
+  /* Indicateur de sauvegarde */
+  #sync{flex:0 0 auto;font-size:12px;color:#e6b800;display:none}
+  #sync.on{display:inline}
 </style>
 </head>
 <body>
 
+<!-- Mur de connexion -->
+<div id="gate" class="on"><div class="card" id="gCard">
+  <h1>Post-its</h1>
+  <p class="sub">Connecte-toi pour retrouver ton bureau sur tous tes appareils.</p>
+  <label for="gMail">Email</label>
+  <input id="gMail" type="email" autocomplete="email" inputmode="email" placeholder="toi@exemple.fr">
+  <label for="gPass">Mot de passe</label>
+  <input id="gPass" type="password" autocomplete="current-password" placeholder="6 caractères minimum">
+  <div class="acts">
+    <button class="primary" id="gIn">Se connecter</button>
+    <button id="gUp">Créer un compte</button>
+  </div>
+  <div class="msg" id="gMsg"></div>
+</div></div>
+
 <div id="bar">
   <button id="add" class="chip">+ Post-it</button>
+  <span id="sync"></span>
   <div class="sep"></div>
   <div id="filters" style="display:contents"></div>
   <div class="sep"></div>
@@ -150,6 +189,7 @@
   <h2>Profils</h2>
   <div id="profList"></div>
   <div class="row"><input type="text" id="newProf" placeholder="Prénom"><button class="primary" id="addProf">Créer</button></div>
+  <div class="row"><span class="name" style="font-size:14px;color:#777">Compte : <span id="acctMail"></span></span><button id="logout">Déconnexion</button></div>
   <button class="close" data-close>Fermer</button>
 </div></div>
 
@@ -160,26 +200,68 @@
   <button class="close" data-close>Fermer</button>
 </div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
 <script>
-/* ---------- Persistance : window.storage (artifact) > localStorage > mémoire ---------- */
-const PKEY='postits-profiles';
-let profiles={list:['Amira'],current:'Amira'};
-const KEY=()=>'postits-v1:'+profiles.current;
-const mem={};
-async function sget(k){
-  try{ if(window.storage){ const r=await window.storage.get(k,false); return r?JSON.parse(r.value):null; } }catch(e){}
-  try{ const v=localStorage.getItem(k); if(v) return JSON.parse(v); }catch(e){}
-  return mem[k]||null;
+/* ---------- Supabase : compte + boards ---------- */
+if(!window.supabase){
+  const m=document.getElementById('gMsg');
+  m.className='msg err';
+  m.textContent="Librairie de connexion non chargée. Vérifie ta connexion internet, puis recharge la page.";
+  throw new Error('supabase-js absent');
 }
-async function sset(k,obj){
-  const v=JSON.stringify(obj); mem[k]=obj;
-  try{ if(window.storage){ await window.storage.set(k,v,false); return; } }catch(e){}
-  try{ localStorage.setItem(k,v); }catch(e){}
+const SB_URL='https://bggnzivpockfowprnwoa.supabase.co';
+const SB_KEY='sb_publishable_dnybm_QvXyOrayd0kG-MuA_1m4GAphw';
+const db=window.supabase.createClient(SB_URL,SB_KEY);
+
+const LASTKEY='postits-last-profile';  // préférence locale : profil ouvert sur cet appareil
+let user=null;                         // utilisateur connecté
+let boards=[];                         // [{id,name,state}] rapatriés depuis la base
+let boardId=null;                      // board affiché
+let profiles={list:[],current:''};     // vue dérivée, utilisée par le reste de l'app
+
+function syncProfiles(){ profiles.list=boards.map(b=>b.name); }
+
+/* Anciens post-its restés en localStorage : récupérés au premier login */
+function localBoards(){
+  const out=[];
+  try{
+    const p=JSON.parse(localStorage.getItem('postits-profiles')||'null');
+    (p&&Array.isArray(p.list)?p.list:[]).forEach(n=>{
+      try{ const s=JSON.parse(localStorage.getItem('postits-v1:'+n)||'null');
+           if(s&&Array.isArray(s.notes)) out.push({name:n,state:s}); }catch(e){}
+    });
+  }catch(e){}
+  return out;
 }
-async function load(){ const p=await sget(PKEY); if(p) profiles=p; return sget(KEY()); }
-let saveT;
-function save(){ clearTimeout(saveT); saveT=setTimeout(()=>sset(KEY(),state),250); }
-function saveProfiles(){ return sset(PKEY,profiles); }
+
+async function fetchBoards(){
+  const {data,error}=await db.from('boards').select('id,name,state').order('created_at');
+  if(error) throw error;
+  boards=data||[]; syncProfiles(); return boards;
+}
+async function createBoard(name,st){
+  const {data,error}=await db.from('boards')
+    .insert({user_id:user.id,name,state:st||freshState()})
+    .select('id,name,state').single();
+  if(error) throw error;
+  boards.push(data); syncProfiles(); return data;
+}
+
+/* Sauvegarde : même signature qu'avant, mais vers la base */
+let saveT,pending=false;
+function save(){ clearTimeout(saveT); saveT=setTimeout(pushState,400); }
+async function pushState(){
+  if(!user||!boardId) return;
+  const b=boards.find(x=>x.id===boardId); if(b) b.state=state;
+  const {error}=await db.from('boards').update({state}).eq('id',boardId);
+  pending=!!error; setSync(error);
+}
+setInterval(()=>{ if(pending) pushState(); },8000);   // reprise après coupure réseau
+function setSync(err){
+  const el=document.getElementById('sync');
+  el.classList.toggle('on',!!err);
+  el.textContent=err?'⚠ non sauvegardé':'';
+}
 
 /* ---------- État ---------- */
 const freshState=()=>({
@@ -400,34 +482,103 @@ setInterval(()=>{if(buddy.classList.contains('sleep')||Math.random()>.45)return;
 function greet(){const h=new Date().getHours();const w=h<12?'Bonjour':h<18?'Bon après-midi':'Bonsoir';const n=state.notes.filter(x=>!x.done).length;
   setTimeout(()=>say(n?`${w} ${N()} ! ${n} post-it${n>1?'s':''} sur le bureau. On y va ?`:`${w} ${N()} ! Bureau vide, on pose un post-it ?`,4500),800);}
 
-/* Profils */
+/* Profils (= boards du compte) */
 async function switchProfile(name){
-  clearTimeout(saveT); await sset(KEY(),state);
-  profiles.current=name; if(!profiles.list.includes(name)) profiles.list.push(name);
-  await saveProfiles();
+  clearTimeout(saveT); await pushState();
+  let b=boards.find(x=>x.name===name);
+  if(!b){ try{ b=await createBoard(name); }catch(e){ alert('Impossible de créer le profil : '+e.message); return; } }
+  boardId=b.id; profiles.current=name;
+  try{ localStorage.setItem(LASTKEY,name); }catch(e){}
   noteEls.forEach(el=>el.remove()); noteEls.clear();
-  state=(await sget(KEY()))||freshState(); renderAll();
+  state={...freshState(),...(b.state||{})}; renderAll();
   document.getElementById('profSheet').classList.remove('open');
   wake(); say(`Salut ${name} ! Content de te voir.`,3000);
 }
 function renderProfiles(){
+  document.getElementById('acctMail').textContent=user?user.email:'';
   const l=document.getElementById('profList'); l.innerHTML='';
-  profiles.list.forEach(n=>{
+  boards.forEach(b=>{
+    const n=b.name;
     const r=document.createElement('div'); r.className='row';
     r.innerHTML=`<span class="name">${n.replace(/</g,'&lt;')}${n===profiles.current?' <span style="color:#777;font-size:13px">(actif)</span>':''}</span><button class="use">Utiliser</button><button class="rm">✕</button>`;
     r.querySelector('.use').onclick=()=>switchProfile(n);
-    r.querySelector('.rm').onclick=()=>{ if(profiles.list.length<2){alert('Il faut garder au moins un profil.');return;}
-      if(confirm(`Supprimer le profil « ${n} » et tous ses post-its ?`)){ profiles.list=profiles.list.filter(x=>x!==n);
-        try{localStorage.removeItem('postits-v1:'+n);}catch(e){} try{window.storage&&window.storage.delete('postits-v1:'+n,false);}catch(e){}
-        if(profiles.current===n) switchProfile(profiles.list[0]); else {saveProfiles();renderProfiles();} } };
+    r.querySelector('.rm').onclick=async()=>{
+      if(boards.length<2){alert('Il faut garder au moins un profil.');return;}
+      if(!confirm(`Supprimer le profil « ${n} » et tous ses post-its ?`)) return;
+      const {error}=await db.from('boards').delete().eq('id',b.id);
+      if(error){alert('Suppression impossible : '+error.message);return;}
+      boards=boards.filter(x=>x.id!==b.id); syncProfiles();
+      if(profiles.current===n) switchProfile(boards[0].name); else renderProfiles();
+    };
     l.appendChild(r);
   });
 }
 document.getElementById('profBtn').onclick=()=>{renderProfiles();document.getElementById('profSheet').classList.add('open');};
-document.getElementById('addProf').onclick=()=>{const n=document.getElementById('newProf').value.trim();if(!n)return;document.getElementById('newProf').value='';switchProfile(n);};
+document.getElementById('addProf').onclick=()=>{const i=document.getElementById('newProf');const n=i.value.trim();if(!n)return;
+  if(boards.some(b=>b.name===n)){alert('Ce profil existe déjà.');return;} i.value=''; switchProfile(n);};
+document.getElementById('logout').onclick=async()=>{ clearTimeout(saveT); await pushState(); await db.auth.signOut(); };
+
+/* ---------- Mur de connexion ---------- */
+const gate=document.getElementById('gate'), gCard=document.getElementById('gCard'),
+      gMail=document.getElementById('gMail'), gPass=document.getElementById('gPass'),
+      gMsg=document.getElementById('gMsg');
+function gateMsg(t,ok){ gMsg.textContent=t||''; gMsg.className='msg'+(t?(ok?' ok':' err'):''); }
+const FR={
+  'Invalid login credentials':'Email ou mot de passe incorrect.',
+  'Email not confirmed':"Email pas encore confirmé : ouvre le lien reçu par mail.",
+  'User already registered':'Ce compte existe déjà — connecte-toi.',
+  'Password should be at least 6 characters.':'Mot de passe : 6 caractères minimum.',
+  'Unable to validate email address: invalid format':'Adresse email invalide.',
+  'Failed to fetch':'Pas de connexion internet.'
+};
+const frErr=e=>FR[e.message]||e.message;
+async function gateRun(fn){
+  const mail=gMail.value.trim(), pass=gPass.value;
+  if(!mail||!pass){ gateMsg('Renseigne ton email et ton mot de passe.'); return; }
+  gCard.classList.add('busy'); gateMsg('');
+  try{ await fn(mail,pass); }catch(e){ gateMsg(frErr(e)); }
+  gCard.classList.remove('busy');
+}
+document.getElementById('gIn').onclick=()=>gateRun(async(mail,pass)=>{
+  const {error}=await db.auth.signInWithPassword({email:mail,password:pass});
+  if(error) throw error;                      // la suite est gérée par onAuthStateChange
+});
+document.getElementById('gUp').onclick=()=>gateRun(async(mail,pass)=>{
+  const {data,error}=await db.auth.signUp({email:mail,password:pass});
+  if(error) throw error;
+  if(!data.session) gateMsg('Compte créé. Confirme ton email, puis connecte-toi.',true);
+});
+gPass.addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('gIn').click(); });
 
 /* ---------- Démarrage ---------- */
-load().then(s=>{ if(s){ state={...state,...s}; } renderAll(); greet(); });
+let started=false;
+async function start(u){
+  user=u; started=true;
+  try{
+    await fetchBoards();
+    if(!boards.length){                       // premier login : on remonte les post-its locaux
+      const old=localBoards();
+      if(old.length){ for(const o of old) await createBoard(o.name,o.state); }
+      else await createBoard('Amira');
+    }
+  }catch(e){ started=false; gateMsg('Accès à la base impossible : '+frErr(e)); return; }
+  let last=null; try{ last=localStorage.getItem(LASTKEY); }catch(e){}
+  const b=boards.find(x=>x.name===last)||boards[0];
+  boardId=b.id; profiles.current=b.name;
+  state={...freshState(),...(b.state||{})};
+  gate.classList.remove('on'); gateMsg(''); gPass.value='';
+  renderAll(); greet();
+}
+function stop(){
+  started=false; user=null; boards=[]; boardId=null; profiles={list:[],current:''};
+  noteEls.forEach(el=>el.remove()); noteEls.clear();
+  state=freshState(); renderAll();
+  gPass.value=''; gateMsg(''); gate.classList.add('on');
+}
+db.auth.onAuthStateChange((ev,session)=>{
+  if(session&&session.user){ if(!started) start(session.user); }
+  else if(started||ev==='SIGNED_OUT') stop();
+});
 </script>
 </body>
 </html>
